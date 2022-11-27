@@ -2,6 +2,7 @@
 /* This file should hold your implementation of the predictor simulator */
 
 #include "bp_api.h"
+#include <math.h>
 
 class BTB_cell{
 public:
@@ -12,7 +13,7 @@ public:
     int *fsm;
     int fsm_size;
     int fsm_state;
-    BTB_cell{
+    BTB_cell(){
         tag = 0;
         target = 0;
         history = NULL;
@@ -30,7 +31,7 @@ public:
         this->fsm_size = fsm_size;
         this->fsm_state = fsm_state;
     }
-    ~BTB_cell{
+    ~BTB_cell(){
         if (history != NULL)
             delete[] history;
         if (fsm != NULL)
@@ -50,8 +51,11 @@ public:
     int fsm_state;
     bool isGlobalHist;
     bool isGlobalFSM;
-    BTB_table{
+    unsigned tagSize;
+    int *tagArray;
+    BTB_table(){
         table = NULL;
+        tagArray = NULL;
         size = 0;
         history = NULL;
         history_size = 0;
@@ -60,18 +64,24 @@ public:
         fsm_state = 0;
         isGlobalHist = false;
         isGlobalFSM = false;
+        tagSize = 0;
     }
-    BTB_table(int size, int *history, int history_size, int *fsm, int fsm_size, bool isGlobalHist, bool isGlobalFSM){
+    BTB_table(int size, int history_size,unsigned tagSize, int fsm_size, bool isGlobalHist, bool isGlobalFSM){
         this->size = size;
-        this->history = history;
         this->history_size = history_size;
-        this->fsm = fsm;
+        this->history = NULL;
         this->fsm_size = fsm_size;
+        this->fsm = NULL;
         this->isGlobalHist = isGlobalHist;
         this->isGlobalFSM = isGlobalFSM;
+        this -> tagSize = tagSize;
         table = new BTB_cell[size];
+        tagArray = new int [pow(2,tagSize)];
         for (int i = 0; i < size; i++){
             table[i] = BTB_cell(0, 0, history, history_size, fsm, fsm_size, fsm_state);
+        }
+        for(int i=0; i<pow(2,tagSize); i++){
+            tagArray[i] = 0;
         }
         if(isGlobalHist){
             this->history = new int[history_size];
@@ -86,7 +96,7 @@ public:
                 }
             }
         }
-        if(isglobalFSM){
+        if(isGlobalFSM){
             this->fsm = new int[fsm_size];
             for (int i = 0; i < fsm_size; i++){
                 this->fsm[i] = this->fsm_state;
@@ -126,7 +136,7 @@ public:
                 }
             }
         }
-        if(isglobalFSM){
+        if(isGlobalFSM){
             this->fsm = new int[fsm_size];
             for (int i = 0; i < fsm_size; i++){
                 this->fsm[i] = other.fsm[i];
@@ -167,7 +177,7 @@ public:
                     }
                 }
             }
-            if(isglobalFSM){
+            if(isGlobalFSM){
                 this->fsm = new int[fsm_size];
                 for (int i = 0; i < fsm_size; i++){
                     this->fsm[i] = other.fsm[i];
@@ -184,7 +194,7 @@ public:
         return *this;
     }
     //destructor
-    ~BTB_table{
+    ~BTB_table(){
         if (table != NULL){
             for(int i = 0; i < size; i++)
                 table[i].~BTB_cell();
@@ -213,15 +223,16 @@ public:
 int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned fsmState,
 			bool isGlobalHist, bool isGlobalTable, int Shared){
     //initialize the global variables
-    BTB_size = btbSize;
-    history_size = historySize;
-    tag_size = tagSize;
-    fsm_state = fsmState;
-    isGlobalHist = isGlobalHist;
-    isGlobalFSM = isGlobalFSM;
-    isShared = Shared;
+    unsigned BTB_size = btbSize;
+    unsigned history_size = historySize;
+    unsigned tag_size = tagSize;
+    unsigned fsm_state = fsmState;
+    bool isGlobalHist = isGlobalHist;
+    bool isGlobalFSM = isGlobalFSM;
+    int isShared = Shared;
     //initialize the BTB
-    BTB = new BTB_table(BTB_size, history_size, tag_size, fsm_state, isGlobalHist, isGlobalFSM);
+    //BTB_table(int size, int history_size, int fsm_size, bool isGlobalHist, bool isGlobalFSM){
+    BTB_table *BTB = new BTB_table(BTB_size, history_size, tag_size, fsm_state, isGlobalHist, isGlobalFSM);
     return 0;
 }
 
@@ -236,4 +247,3 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
 void BP_GetStats(SIM_stats *curStats){
 	return;
 }
-
