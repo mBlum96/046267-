@@ -3,6 +3,13 @@
 
 #include "bp_api.h"
 #include <math.h>
+#include <unordered_map>
+
+using std::unordered_map;
+
+
+
+
 
 class BTB_cell{
 public:
@@ -39,6 +46,7 @@ public:
     }
 };
 
+// unordered_map<uint32_t,BTB_cell> map;
 
 class BTB_table{
 public:
@@ -219,6 +227,8 @@ public:
     }
 };
 
+BTB_table *BTB;
+
 //this function initializes the predictor
 int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned fsmState,
 			bool isGlobalHist, bool isGlobalTable, int Shared){
@@ -231,13 +241,131 @@ int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned f
     bool isGlobalFSM = isGlobalFSM;
     int isShared = Shared;
     //initialize the BTB
-    //BTB_table(int size, int history_size, int fsm_size, bool isGlobalHist, bool isGlobalFSM){
-    BTB_table *BTB = new BTB_table(BTB_size, history_size, tag_size, fsm_state, isGlobalHist, isGlobalFSM);
+    BTB = new BTB_table(BTB_size, history_size, tag_size, fsm_state, isGlobalHist, isGlobalFSM);
     return 0;
 }
 
+//this function is called for every branch instruction
 bool BP_predict(uint32_t pc, uint32_t *dst){
-	return false;
+    //get the index of the BTB cell
+    unsigned index = pc % BTB->size;
+    //get the tag of the BTB cell
+    unsigned tag = pc >> (BTB->tagSize);
+    //check if the tag is the same
+    if (BTB->table[index].tag == tag){
+        //get the history
+        unsigned history = 0;
+        if (BTB->isGlobalHist){
+            for (int i = 0; i < BTB->history_size; i++){
+                history = history << 1;
+                history = history | BTB->history[i];
+            }
+        }else{
+            for (int i = 0; i < BTB->history_size; i++){
+                history = history << 1;
+                history = history | BTB->table[index].history[i];
+            }
+        }
+        //get the fsm state
+        unsigned fsm_state = 0;
+        if (BTB->isGlobalFSM){
+            for (int i = 0; i < BTB->fsm_size; i++){
+                fsm_state = fsm_state << 1;
+                fsm_state = fsm_state | BTB->fsm[i];
+            }
+        }else{
+            for (int i = 0; i < BTB->fsm_size; i++){
+                fsm_state = fsm_state << 1;
+                fsm_state = fsm_state | BTB->table[index].fsm[i];
+            }
+        }
+        //get the target
+        unsigned target = BTB->table[index].target;
+        bool prediction = false;
+        //get the prediction if fsm is local and history is local
+        if(!BTB->isGlobalHist && !BTB->isGlobalFSM){
+            if (BTB->table[index].fsm_state == 0 || BTB->table[index].fsm_state == 1){
+                prediction = false;
+            }else{
+                prediction = true;
+            }
+        }
+        //get the prediction if fsm is local and history is global
+        if(BTB->table[index].fsm[history]==0|| BTB->table[index].fsm[history]==1){
+            prediction = false;
+        }else{
+            prediction = true;
+        }
+        //get the prediction if fsm is global and history is local
+
+        //get the prediction if fsm is global and history is global
+
+        //update the fsm state
+        if (prediction){
+            if (BTB->table[index].fsm_state < (1 << (BTB->fsm_size - 1)) - 1)
+                BTB->table[index].fsm_state++;
+        }else{
+            if (BTB->table[index].fsm_state > 0)
+                BTB->table[index].fsm_state--;
+        }
+        //update the history
+        if (prediction){
+            if (BTB->isGlobalHist){
+                for (int i = 0; i < BTB->history_size - 1; i++){
+                    BTB->history[i] = BTB->history[i + 1];
+                }
+                BTB->history[BTB->history_size - 1] = 1;
+            }else{
+                for (int i = 0; i < BTB->history_size - 1; i++){
+                    BTB->table[index].history[i] = BTB->table[index].history[i + 1];
+                }
+                BTB->table[index].history[BTB->history_size - 1] = 1;
+            }
+        }else{
+            if (BTB->isGlobalHist){
+                for (int i = 0; i < BTB->history_size - 1; i++){
+                    BTB->history[i] = BTB->history[i + 1];
+                }
+                BTB->history[BTB->history_size - 1] = 0;
+            }else{
+                for (int i = 0; i < BTB->history_size - 1; i++){
+                    BTB->table[index].history[i] = BTB->table[index].history[i + 1];
+                }
+                BTB->table[index].history[BTB->history_size - 1] = 0;
+            }
+        }
+        //update the fsm
+        if (prediction){
+            if (BTB->isGlobalFSM){
+                for (int i = 0; i < BTB->fsm_size - 1; i++){
+                    BTB->fsm[i] = BTB->fsm[i + 1];
+                }
+                BTB->fsm[BTB->fsm_size - 1] = 1;
+            }else{
+                for (int i = 0; i < BTB->fsm_size - 1; i++){
+                    BTB->table[index].fsm[i] = BTB->table[index].fsm[i + 1];
+                }
+                BTB->table[index].fsm[BTB->fsm_size - 1] = 1;
+            }
+        }else{
+            if (BTB->isGlobalFSM){
+                for (int i = 0; i < BTB->fsm_size - 1; i++){
+                    BTB->fsm[i] = BTB->fsm[i + 1];
+                }
+                BTB->fsm[BTB->fsm_size - 1] = 0;
+            }else{
+                for (int i = 0; i < BTB->fsm_size - 1; i++){
+                    BTB->table[index].fsm[i] = BTB->table[index].fsm[i + 1];
+                }
+                BTB->table[index].fsm[BTB->fsm_size - 1] = 0;
+            }
+        }
+        //return the prediction
+        return prediction;
+    }else{
+        //if the tag is not the same, return false
+        return false;
+    }
 }
 
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
