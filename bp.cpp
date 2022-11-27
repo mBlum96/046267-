@@ -297,9 +297,17 @@ bool BP_predict(uint32_t pc, uint32_t *dst){
             prediction = true;
         }
         //get the prediction if fsm is global and history is local
-
+        if(BTB->fsm[history]==0|| BTB->fsm[history]==1){
+            prediction = false;
+        }else{
+            prediction = true;
+        }
         //get the prediction if fsm is global and history is global
-
+        if(BTB->fsm[history]==0|| BTB->fsm[history]==1){
+            prediction = false;
+        }else{
+            prediction = true;
+        }
         //update the fsm state
         if (prediction){
             if (BTB->table[index].fsm_state < (1 << (BTB->fsm_size - 1)) - 1)
