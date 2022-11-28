@@ -74,8 +74,7 @@ public:
     unsigned tagSize;
     int *tagArray;
     int shared;
-    int flushes_num;
-    int updates_num;
+    SIM_stats stats;
     BTB_table(){
         table = NULL;
         tagArray = NULL;
@@ -88,8 +87,7 @@ public:
         isGlobalHist = false;
         isGlobalFSM = false;
         tagSize = 0;
-        flushes_num = 0;
-        updates_num = 0;
+        stats = {0, 0, 0};
 
     }
     BTB_table(int size, int history_size,unsigned tagSize, int fsm_size, bool isGlobalHist, bool isGlobalFSM, int isShared){
@@ -102,8 +100,8 @@ public:
         this->isGlobalFSM = isGlobalFSM;
         this -> tagSize = tagSize;
         this->shared = isShared;
-        this->flushes_num = 0;
-        this->updates_num = 0;
+        this->stats = {0, 0, 0};
+
         table = new BTB_cell[size];
         tagArray = new int (pow(2,tagSize));
         for (int i = 0; i < size; i++){
@@ -148,8 +146,7 @@ public:
         this->fsm_size = other.fsm_size;
         this->isGlobalHist = other.isGlobalHist;
         this->isGlobalFSM = other.isGlobalFSM;
-        this->flushes_num = other.flushes_num;
-        this->updates_num = other.updates_num;
+        this->stats = other.stats;
 
         this->table = new BTB_cell[size];
 
@@ -463,8 +460,9 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
         prediction = true;
     }
     if(prediction!=taken){
-        BTB->flushes_num++;
+        BTB->stats.flush_num ++;
     }
+    BTB->stats.br_num++;
     if(!taken && BTB->table[index].valid == 0){
         BTB->table[index].target = targetPc;
         BTB->table[index].valid = 1;
@@ -539,5 +537,27 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
 }
 
 void BP_GetStats(SIM_stats *curStats){
+    curStats->br_num = BTB->stats.br_num;
+    curStats->flush_num = BTB->stats.flush_num;
+    curStats->size =
+
+    curStats->size = BTB->size * (1 + sizeof(BTB->table->target)-2 + BTB->tagSize);
+    if (!BTB->isGlobalHist)
+    {
+        curStats->size += BTB->size * BTB->history_size;
+    }
+    else
+    {
+        curStats->size += BTB->history_size;
+    }
+
+    if (!BTB->isGlobalFSM)
+    {
+        curStats->size += BTB->size * pow(2, (BTB->history_size + 1));
+    }
+    else
+    {
+        curStats->size += pow(2, (BTB->history_size + 1));
+    }
     return;
 }
