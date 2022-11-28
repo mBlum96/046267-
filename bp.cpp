@@ -29,14 +29,23 @@ public:
         fsm_size = 0;
         fsm_state = 0;
     }
-    BTB_cell(uint32_t tag, uint32_t target, int *history, int history_size, int *fsm, int fsm_size, int fsm_state){
+    BTB_cell(uint32_t tag, uint32_t target, int *history, int history_size, int *fsm, int fsm_size, int fsm_state, bool isGlobal){
         this->tag = tag;
         this->target = target;
         this->history = history;
         this->history_size = history_size;
-        this->fsm = fsm;
+//        this->fsm = fsm;
         this->fsm_size = fsm_size;
-        this->fsm_state = fsm_state;
+        if(!isGlobal){
+            fsm = new int[fsm_size]; // when global , turn this off.
+            for (int i=0;i<fsm_size;i++) {
+                fsm[i] = fsm_state;
+            }
+        }else{
+            fsm=NULL;
+        }
+//        this->fsm_state = fsm_state;
+
     }
     ~BTB_cell(){
         if (history != NULL)
@@ -61,6 +70,7 @@ public:
     bool isGlobalFSM;
     unsigned tagSize;
     int *tagArray;
+    int shared;
     BTB_table(){
         table = NULL;
         tagArray = NULL;
@@ -73,8 +83,9 @@ public:
         isGlobalHist = false;
         isGlobalFSM = false;
         tagSize = 0;
+
     }
-    BTB_table(int size, int history_size,unsigned tagSize, int fsm_size, bool isGlobalHist, bool isGlobalFSM){
+    BTB_table(int size, int history_size,unsigned tagSize, int fsm_size, bool isGlobalHist, bool isGlobalFSM, int isShared){
         this->size = size;
         this->history_size = history_size;
         this->history = NULL;
@@ -83,10 +94,11 @@ public:
         this->isGlobalHist = isGlobalHist;
         this->isGlobalFSM = isGlobalFSM;
         this -> tagSize = tagSize;
+        this->shared = isShared;
         table = new BTB_cell[size];
         tagArray = new int [pow(2,tagSize)];
         for (int i = 0; i < size; i++){
-            table[i] = BTB_cell(0, 0, history, history_size, fsm, fsm_size, fsm_state);
+            table[i] = BTB_cell(0, 0, history, history_size, fsm, fsm_size, fsm_state, isGlobalFSM);
         }
         for(int i=0; i<pow(2,tagSize); i++){
             tagArray[i] = 0;
@@ -231,24 +243,25 @@ BTB_table *BTB;
 
 //this function initializes the predictor
 int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned fsmState,
-			bool isGlobalHist, bool isGlobalTable, int Shared){
+            bool isGlobalHist, bool isGlobalTable, int Shared){
+
     //initialize the global variables
-    unsigned BTB_size = btbSize;
-    unsigned history_size = historySize;
-    unsigned tag_size = tagSize;
-    unsigned fsm_state = fsmState;
-    bool isGlobalHist = isGlobalHist;
-    bool isGlobalFSM = isGlobalFSM;
-    int isShared = Shared;
+//    unsigned BTB_size = btbSize;
+//    unsigned history_size = historySize;
+//    unsigned tag_size = tagSize;
+//    unsigned fsm_state = fsmState;
+//    bool isGlobalHist = isGlobalHist;
+//    bool isGlobalFSM = isGlobalFSM;
+//    int isShared = Shared;
     //initialize the BTB
-    BTB = new BTB_table(BTB_size, history_size, tag_size, fsm_state, isGlobalHist, isGlobalFSM);
+    BTB = new BTB_table(btbSize, historySize, tagSize, fsmState, isGlobalHist, isGlobalTable, Shared);
     return 0;
 }
 
 //this function is called for every branch instruction
 bool BP_predict(uint32_t pc, uint32_t *dst){
     //get the index of the BTB cell
-    unsigned index = pc % BTB->size;
+    unsigned index = (pc/4) % BTB->size;
     //get the tag of the BTB cell
     unsigned tag = pc >> (BTB->tagSize);
     //check if the tag is the same
@@ -377,9 +390,9 @@ bool BP_predict(uint32_t pc, uint32_t *dst){
 }
 
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
-	return;
+    return;
 }
 
 void BP_GetStats(SIM_stats *curStats){
-	return;
+    return;
 }
