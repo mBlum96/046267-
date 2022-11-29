@@ -3,12 +3,19 @@
 
 #include "bp_api.h"
 #include <cmath>
-#include <unordered_map>
-
-using std::unordered_map;
 
 
 
+unsigned log2_func(unsigned x)
+{
+    int res = 0;
+
+    while (pow(2, res) < x)
+    {
+        res++;
+    }
+    return res;
+}
 
 
 class BTB_cell{
@@ -37,24 +44,15 @@ public:
         this->history = history;
         this->history_size = history_size;
         this->valid = 0;
-//        this->fsm = fsm;
         this->fsm_size = fsm_size;
-//        if(!isGlobal){
-//            fsm = new int[fsm_size]; // when global , turn this off.
-//            for (int i=0;i<fsm_size;i++) {
-//                fsm[i] = fsm_state;
-//            }
-//        }else{
-//            fsm=NULL;
-//        }
-//        this->fsm_state = fsm_state;
+
 
     }
     ~BTB_cell(){
-        if (history != NULL)
-            delete[] history;
-        if (fsm != NULL)
-            delete[] fsm;
+//        if (history != NULL)
+//            delete[] history;
+//        if (fsm != NULL)
+//            delete[] fsm;
     }
 };
 
@@ -103,11 +101,12 @@ public:
         this->stats = {0, 0, 0};
 
         table = new BTB_cell[size];
-        tagArray = new int (pow(2,tagSize));
+        int tagArraySize = pow(2,tagSize);
+        tagArray = new int[tagArraySize];
         for (int i = 0; i < size; i++){
             table[i] = BTB_cell(0, 0, history, history_size, fsm, fsm_size, fsm_state, isGlobalFSM);
         }
-        for(int i=0; i<pow(2,tagSize); i++){
+        for(int i=0; i<tagArraySize; i++){
             tagArray[i] = 0;
         }
         if(isGlobalHist){
@@ -229,11 +228,6 @@ public:
     }
     //destructor
     ~BTB_table(){
-        if (table != NULL){
-            for(int i = 0; i < size; i++)
-                table[i].~BTB_cell();
-            delete[] table;
-        }
         if(history != NULL){
             if(isGlobalHist)
                 delete[] history;
@@ -249,6 +243,11 @@ public:
                 for(int i = 0; i < size; i++)
                     delete[] table[i].fsm;
             }
+        }
+        if (table != NULL){
+            for(int i = 0; i < size; i++)
+                table[i].~BTB_cell();
+            delete[] table;
         }
     }
 };
@@ -310,45 +309,16 @@ unsigned getHistory(uint32_t pc){
 //this function is called for every branch instruction
 bool BP_predict(uint32_t pc, uint32_t *dst){
     //get the index of the BTB cell
-
-    unsigned index = (pc/4) % BTB->size;
-
+    unsigned btb_index = pc >> 2;
+    unsigned index = btb_index % unsigned(pow(2, log2_func(BTB->size)));
     //get the tag of the BTB cell
-    unsigned tag = pc >> (BTB->tagSize);
+//    unsigned tag = pc >> (BTB->tagSize);
+    int btbIndexLength = log2_func(BTB->size);
+    unsigned tag = pc >> (2 + btbIndexLength); //allign address
+    tag = tag % int(pow(2, BTB->tagSize));
     //check if the tag is the same
-    if (BTB->table[index].tag == tag)
+    if (BTB->table[index].tag == tag && BTB->table[index].valid != 0)
     {
-//        //get the history
-//        unsigned history = 0;
-//        if (BTB->isGlobalHist)
-//        {
-//            for (int i = 0; i < BTB->history_size; i++)
-//            {
-//                history = history << 1;
-//                history = history | BTB->history[i];
-//            }
-//        } else
-//        {
-//            for (int i = 0; i < BTB->history_size; i++)
-//            {
-//                history = history << 1;
-//                history = history | BTB->table[index].history[i];
-//            }
-//        }
-//        if(BTB->isGlobalFSM)
-//        {
-//            if (BTB->shared == 1)
-//            {
-//                pc = pc >> 2;
-//                history ^= pc;
-//            }
-//            if (BTB->shared == 2)
-//            {
-//                pc = pc >> 16;
-//                history ^= pc;
-//            }
-//
-//        }
         unsigned history = getHistory(pc);
         //get the fsm state
         unsigned fsm_state = 0;
@@ -383,41 +353,34 @@ bool BP_predict(uint32_t pc, uint32_t *dst){
                 prediction = true;
             }
         }
+
         //get the prediction if fsm is local and history is global
-        if (BTB->table[index].fsm[history] == 0 || BTB->table[index].fsm[history] == 1)
-        {
-            prediction = false;
-        } else
-        {
-            prediction = true;
+        if(BTB->isGlobalHist && !BTB->isGlobalFSM){
+            if (BTB->table[index].fsm[history] == 0 || BTB->table[index].fsm[history] == 1)
+            {
+                prediction = false;
+            } else
+            {
+                prediction = true;
+            }
         }
         //get the prediction if fsm is global and history is local
-        if (BTB->fsm[history] == 0 || BTB->fsm[history] == 1)
-        {
-            prediction = false;
-        } else
-        {
-            prediction = true;
+        if(!BTB->isGlobalHist && BTB->isGlobalFSM) {
+            if (BTB->fsm[history] == 0 || BTB->fsm[history] == 1) {
+                prediction = false;
+            } else {
+                prediction = true;
+            }
         }
         //get the prediction if fsm is global and history is global
-        if (BTB->fsm[history] == 0 || BTB->fsm[history] == 1)
-        {
-            prediction = false;
-        } else
-        {
-            prediction = true;
-        }
-        //update the fsm state
-        if (prediction)
-        {
-            if (BTB->table[index].fsm_state < (1 << (BTB->fsm_size - 1)) - 1)
-                BTB->table[index].fsm_state++;
-        } else
-        {
-            if (BTB->table[index].fsm_state > 0)
-                BTB->table[index].fsm_state--;
-        }
+        if(BTB->isGlobalHist && BTB->isGlobalFSM) {
+            if(BTB->fsm_state > 1){
+                prediction = true;
+            }else{
+                prediction = false;
+            }
 
+        }
 
         if (prediction)
         {
@@ -428,18 +391,11 @@ bool BP_predict(uint32_t pc, uint32_t *dst){
         }
         return prediction;
     }
+    *dst = pc+4;
     return false;
 
 }
-unsigned log2_func(unsigned x)
-{
-    int res = 0;
-    while (pow(2, res) < x)
-    {
-        res++;
-    }
-    return res;
-}
+
 
 unsigned getTagFromPC(uint32_t pc)
 {
@@ -450,7 +406,8 @@ unsigned getTagFromPC(uint32_t pc)
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     //update the history
     bool prediction;
-    unsigned index = (pc/4) % BTB->size;
+    unsigned btb_index = pc >> 2;
+    unsigned index = btb_index % unsigned(pow(2, log2_func(BTB->size)));
     unsigned history = getHistory(pc);
     if(pred_dst == pc+4)
     {
@@ -463,19 +420,25 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
         BTB->stats.flush_num ++;
     }
     BTB->stats.br_num++;
+
     if(!taken && BTB->table[index].valid == 0){
         BTB->table[index].target = targetPc;
         BTB->table[index].valid = 1;
         BTB->table[index].tag = getTagFromPC(pc);
+        BTB->table[index].history_size = BTB->history_size;
+        BTB->table[index].fsm_size = BTB->fsm_size;
+        BTB->table[index].fsm_state = BTB->fsm_state;
 
     }
     //update the fsm
 //    if (){
     if (BTB->isGlobalFSM){
         if(BTB->fsm[history]<3 && taken){
+            //BTB->fsm_state++;
             BTB->fsm[history]++;
         }else{
             if(BTB->fsm[history]>0 && !taken){
+                //BTB->fsm_state--;
                 BTB->fsm[history]--;
             }
         }
@@ -490,20 +453,7 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
             }
         }
     }
-//    }
-//    else{
-//        if (BTB->isGlobalFSM){
-//            for (int i = 0; i < BTB->fsm_size - 1; i++){
-//                BTB->fsm[i] = BTB->fsm[i + 1];
-//            }
-//            BTB->fsm[BTB->fsm_size - 1] = 0;
-//        }else{
-//            for (int i = 0; i < BTB->fsm_size - 1; i++){
-//                BTB->table[index].fsm[i] = BTB->table[index].fsm[i + 1];
-//            }
-//            BTB->table[index].fsm[BTB->fsm_size - 1] = 0;
-//        }
-//    }
+
 
     //update history
     if (taken){
@@ -539,9 +489,9 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
 void BP_GetStats(SIM_stats *curStats){
     curStats->br_num = BTB->stats.br_num;
     curStats->flush_num = BTB->stats.flush_num;
-    curStats->size =
 
-    curStats->size = BTB->size * (1 + sizeof(BTB->table->target)-2 + BTB->tagSize);
+
+    curStats->size = BTB->size * (1 + 2*BTB->tagSize); //sizeof(BTB->table->target)-2
     if (!BTB->isGlobalHist)
     {
         curStats->size += BTB->size * BTB->history_size;
@@ -559,5 +509,5 @@ void BP_GetStats(SIM_stats *curStats){
     {
         curStats->size += pow(2, (BTB->history_size + 1));
     }
-    return;
+
 }
