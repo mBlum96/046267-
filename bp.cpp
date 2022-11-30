@@ -80,7 +80,7 @@ public:
         this->stats = {0, 0, 0};
 
         table = new BTB_cell[size];
-        for (int i = 0; i < size; i++){
+        for (unsigned i = 0; i < size; i++){
             table[i] = BTB_cell(0, 0);
         }
         this->fsm_size = (unsigned )pow(2, history_size);
@@ -89,25 +89,22 @@ public:
             *this->fsm = new unsigned[this->fsm_size];
         } else{
             this->fsm = new unsigned *[size];
-
             for (unsigned i = 0; i < size; i++)
             {
                 this->fsm[i] = new unsigned[this->fsm_size];
             }
         }
         if(!isGlobalFSM){
-
-
-            for (int j = 0; j < this->size; j++)
+            for (unsigned j = 0; j < this->size; j++)
             {
-                for (int i = 0; i < this->fsm_size; i++)
+                for (unsigned i = 0; i < this->fsm_size; i++)
                 {
                     this->fsm[j][i] = this->fsm_state;
                 }
             }
         }else{
 
-            for (int i = 0; i < this->fsm_size; i++)
+            for (unsigned i = 0; i < this->fsm_size; i++)
             {
                 this->fsm[0][i] = this->fsm_state;
 
@@ -115,12 +112,13 @@ public:
         }
         if(!isGlobalHist){
             this->history = new unsigned[size];
-            for (int i = 0; i < size; ++i) {
+            for (unsigned i = 0; i < size; ++i) {
                 this->history[i] = 0;
             }
         }else{
             this->history = new unsigned;
             *(this->history) = 0;
+            // this->history[0] = 0;
         }
 
 
@@ -128,17 +126,22 @@ public:
     //destructor
     ~BTB_table(){
         if(history != NULL){
-            if(isGlobalHist)
-                delete[] history;
-
+            // if(isGlobalHist)
+            //     delete[] history;
+            delete[] history;
         }
         if (fsm != NULL){
-            if(isGlobalFSM)
-                delete[] fsm;
-
+            // if(isGlobalFSM)
+            //     delete[] fsm;
+            if(!isGlobalFSM){
+                for(unsigned i =0;i<this->size;i++){
+                    delete[] this->fsm[i];
+                }
+            }
+            delete[] fsm;
         }
         if (table != NULL){
-            for(int i = 0; i < size; i++)
+            for(unsigned i = 0; i < size; i++)
                 table[i].~BTB_cell();
             delete[] table;
         }
@@ -234,7 +237,7 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     unsigned btb_index = pc >> 2;
     unsigned index_in_table = btb_index % unsigned(pow(2, log2_func(BTB->size)));
     unsigned index_in_fsm;
-    unsigned fsm_state = 0;
+    // unsigned fsm_state = 0;
     unsigned shared = 0;
     unsigned temp_size = unsigned(pow(2, BTB->history_size));
     unsigned tag = fromPCToTag(pc);
@@ -246,7 +249,7 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
 
         if (!BTB->isGlobalFSM)
         {
-            for (int i = 0; i < temp_size; i++){
+            for (unsigned i = 0; i < temp_size; i++){
                 BTB->fsm[index_in_table][i] = BTB->fsm_state;
             }
         }
@@ -356,5 +359,9 @@ void BP_GetStats(SIM_stats *curStats){
     {
         curStats->size += pow(2, (BTB->history_size + 1));
     }
-
+    // BTB->~BTB_table();
+    // delete BTB;
+    if(BTB){
+        delete BTB;
+    }
 }
