@@ -240,7 +240,7 @@ unsigned fromPCToTag(uint32_t pc)
 
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     //update the history
-    bool prediction;
+    //bool prediction;
     unsigned btb_index = pc >> 2;
     unsigned index_in_table = btb_index % unsigned(pow(2, log2_func(BTB->size)));
     unsigned index_in_fsm;
@@ -284,15 +284,15 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     }
 
     index_in_fsm =  index_in_fsm ^ shared;
-
-    if(pred_dst == pc+4)
+    unsigned destination;
+    if(taken)
     {
-        prediction = false;
+        destination = targetPc;
     }else
     {
-        prediction = true;
+        destination = pc+4;
     }
-    if(prediction!=taken){
+    if(destination != pred_dst){
         BTB->stats.flush_num ++;
     }
     BTB->stats.br_num++;
