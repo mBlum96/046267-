@@ -128,7 +128,11 @@ public:
         if(history != NULL){
             // if(isGlobalHist)
             //     delete[] history;
-            delete[] history;
+            if(!isGlobalHist){
+                delete[] history;
+            }else{ 
+                delete history;
+            }
         }
         if (fsm != NULL){
             // if(isGlobalFSM)
@@ -137,13 +141,16 @@ public:
                 for(unsigned i =0;i<this->size;i++){
                     delete[] this->fsm[i];
                 }
+                delete[] this->fsm;
+            }else{
+                delete[] this->fsm[0];
+                delete this->fsm;
             }
-            delete[] fsm;
         }
         if (table != NULL){
             for(unsigned i = 0; i < size; i++)
                 table[i].~BTB_cell();
-            delete[] table;
+            if(table) delete[] table;
         }
     }
 };
