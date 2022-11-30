@@ -5,17 +5,6 @@
 #include <cmath>
 
 
-unsigned log2_func(unsigned x)
-{
-    unsigned res = 0;
-
-    while (pow(2, res) < x)
-    {
-        res++;
-    }
-    return res;
-}
-
 
 class BTB_cell{
 public:
@@ -31,14 +20,22 @@ public:
         this->tag = tag;
         this->target = target;
         this->valid = 0;
-
-
     }
     ~BTB_cell()= default;
 
-
 };
 
+
+unsigned log2_func(unsigned x)
+{
+    unsigned res = 0;
+
+    while (pow(2, res) < x)
+    {
+        res++;
+    }
+    return res;
+}
 
 
 class BTB_table{
@@ -70,11 +67,11 @@ public:
         stats = {0, 0, 0};
 
     }
-    BTB_table(unsigned size, unsigned history_size,unsigned tagSize, unsigned fsm_size, bool isGlobalHist, bool isGlobalFSM, int isShared){
+    BTB_table(unsigned size, unsigned history_size,unsigned tagSize, unsigned fsm_state, bool isGlobalHist, bool isGlobalFSM, int isShared){
         this->size = size;
         this->history_size = history_size;
         this->history = NULL;
-        this->fsm_size = fsm_size;
+        this->fsm_state = fsm_state;
         this->fsm = NULL;
         this->isGlobalHist = isGlobalHist;
         this->isGlobalFSM = isGlobalFSM;
@@ -86,17 +83,35 @@ public:
         for (int i = 0; i < size; i++){
             table[i] = BTB_cell(0, 0);
         }
-        unsigned tmp_size = pow(2, history_size);
-        if(!isGlobalFSM){
+        this->fsm_size = (unsigned )pow(2, history_size);
+        if (isGlobalFSM){
+            this->fsm = new unsigned* ;
+            *this->fsm = new unsigned[this->fsm_size];
+        } else{
             this->fsm = new unsigned *[size];
 
             for (unsigned i = 0; i < size; i++)
             {
-                this->fsm[i] = new unsigned[tmp_size];
+                this->fsm[i] = new unsigned[this->fsm_size];
+            }
+        }
+        if(!isGlobalFSM){
+
+
+            for (int j = 0; j < this->size; j++)
+            {
+                for (int i = 0; i < this->fsm_size; i++)
+                {
+                    this->fsm[j][i] = this->fsm_state;
+                }
             }
         }else{
-            this->fsm = new unsigned* ;
-            *(this->fsm) = new unsigned[tmp_size];
+
+            for (int i = 0; i < this->fsm_size; i++)
+            {
+                this->fsm[0][i] = this->fsm_state;
+
+            }
         }
         if(!isGlobalHist){
             this->history = new unsigned[size];
@@ -222,6 +237,26 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     unsigned fsm_state = 0;
     unsigned shared = 0;
     unsigned temp_size = unsigned(pow(2, BTB->history_size));
+    unsigned tag = fromPCToTag(pc);
+    if( BTB->table[index_in_table].valid == 0 || BTB->table[index_in_table].tag != tag){
+        BTB->table[index_in_table].target = targetPc;
+        BTB->table[index_in_table].valid = 1;
+        BTB->table[index_in_table].tag = tag;
+
+
+        if (!BTB->isGlobalFSM)
+        {
+            for (int i = 0; i < temp_size; i++){
+                BTB->fsm[index_in_table][i] = BTB->fsm_state;
+            }
+        }
+        if (!BTB->isGlobalHist)
+        {
+            BTB->history[index_in_table] = 0;
+        }
+
+
+    }
     if (BTB->shared == 2)
     {
         shared = pc >> 16;
@@ -239,6 +274,7 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     }
 
     index_in_fsm =  index_in_fsm ^ shared;
+
     if(pred_dst == pc+4)
     {
         prediction = false;
@@ -251,25 +287,7 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst){
     }
     BTB->stats.br_num++;
 
-    unsigned tag = fromPCToTag(pc);
-    if( BTB->table[index_in_table].valid == 0 || BTB->table[index_in_table].tag != tag){
-        BTB->table[index_in_table].target = targetPc;
-        BTB->table[index_in_table].valid = 1;
-        BTB->table[index_in_table].tag = tag;
 
-        if (!BTB->isGlobalFSM)
-        {
-            for (int i = 0; i < temp_size; i++){
-                BTB->fsm[index_in_table][i] = BTB->fsm_state;
-            }
-        }
-        if (!BTB->isGlobalHist)
-        {
-            BTB->history[index_in_table] = 0;
-        }
-
-
-    }
     BTB->table[index_in_table].target = targetPc;
 
     //update the fsm
@@ -320,7 +338,7 @@ void BP_GetStats(SIM_stats *curStats){
     curStats->flush_num = BTB->stats.flush_num;
 
 
-    curStats->size = BTB->size * (1 + 2*BTB->tagSize); //sizeof(BTB->table->target)-2
+    curStats->size = BTB->size * (31 + BTB->tagSize); //sizeof(BTB->table->target)-2
     if (!BTB->isGlobalHist)
     {
         curStats->size += BTB->size * BTB->history_size;
