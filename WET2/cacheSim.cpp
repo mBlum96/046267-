@@ -36,43 +36,77 @@ public:
 //the cache is implemented using a hash table
 class Cache{
 private:
+	unsigned int level;
 	unsigned int size;
 	unsigned int blockSize;
 	unsigned int assoc;
 	unsigned int accessTime;
 	bool writeAlloc;
-	Node* head;
-	Node* tail;
+	vector<Node*> head;
+	vector<Node*> tail;
 	// unordered_map<unsigned long int, Node*> cache;
 	vector <unordered_map<unsigned long int, Node*>> cache;
 
 
 public:
 	Cache(){
+		level = 0;
 		size = 0;
 		blockSize = 0;
 		assoc = 0;
 		accessTime = 0;
 		writeAlloc = false;
-		head = nullptr;
-		tail = nullptr;
+		for(int i = 0; i < assoc; i++){
+			unordered_map<unsigned long int, Node*> temp;
+			cache.push_back(temp);
+			head[i] = new Node(0, nullptr, nullptr);
+			tail[i] = new Node(0, nullptr, nullptr);
+			head[i]->next = tail[i];
+			tail[i]->prev = head[i];
+		}
 
 	}
-	Cache(unsigned int size, unsigned int blockSize, unsigned int assoc
+	Cache(unsigned int level, unsigned int size, unsigned int blockSize, unsigned int assoc
 			, unsigned int accessTime, bool writeAlloc):
-		size(size), blockSize(blockSize), assoc(assoc), accessTime(accessTime),
+		level(level), size(size), blockSize(blockSize), assoc(assoc), accessTime(accessTime),
 		writeAlloc(writeAlloc){
-		head = new Node(0, nullptr, nullptr);
-		tail = new Node(0, nullptr, nullptr);
-		head->next = tail;
-		tail->prev = head;
+			head.resize(assoc);
+			tail.resize(assoc);
+
+			for(int i = 0; i < assoc; i++){
+				unordered_map<unsigned long int, Node*> temp;
+				cache.push_back(temp);
+				head[i] = new Node(0, nullptr, nullptr);
+				tail[i] = new Node(0, nullptr, nullptr);
+				head[i]->next = tail[i];
+				tail[i]->prev = head[i];
+			}
+			if(assoc == 0){
+				unordered_map<unsigned long int, Node*> temp;
+				cache.push_back(temp);
+				head[0] = new Node(0, nullptr, nullptr);
+				tail[0] = new Node(0, nullptr, nullptr);
+				head[0]->next = tail[0];
+				tail[0]->prev = head[0];
+			}
+			cache.resize(assoc);
 	}
 	~Cache(){
-		Node* temp = head;
-		while(temp != nullptr){
-			Node* next = temp->next;
-			delete temp;
-			temp = next;
+		for(int i = 0; i < assoc; i++){
+			Node* temp = head[i];
+			while(temp != nullptr){
+				Node* temp2 = temp->next;
+				delete temp;
+				temp = temp2;
+			}
+		}
+		if(assoc == 0){
+			Node* temp = head[0];
+			while(temp != nullptr){
+				Node* temp2 = temp->next;
+				delete temp;
+				temp = temp2;
+			}
 		}
 	}
 	// in order to look for the block in the cache we are going to set all of the
@@ -98,15 +132,15 @@ public:
 		int set = findSet(address);
 		address = getBlockAddress(address);
 		if(cache[set].size() == this->size/this->assoc){
-			Node* temp = tail->prev;
-			temp->prev->next = tail;
-			tail->prev = temp->prev;
+			Node* temp = tail[set]->prev;
+			temp->prev->next = tail[set];
+			tail[set]->prev = temp->prev;
 			cache[set].erase(temp->address);
 			delete temp;
 		}
-		Node* temp = new Node(address, head->next, head);
-		head->next->prev = temp;
-		head->next = temp;
+		Node* temp = new Node(address, head[set]->next, head[set]);
+		head[set]->next->prev = temp;
+		head[set]->next = temp;
 		cache[set][address] = temp;
  	}
 	//this function gets the block from the cache
@@ -119,10 +153,10 @@ public:
 		Node* temp = cache[set][address];
 		temp->prev->next = temp->next;
 		temp->next->prev = temp->prev;
-		head->next->prev = temp;
-		temp->next = head->next;
-		temp->prev = head;
-		head->next = temp;
+		head[set]->next->prev = temp;
+		temp->next = head[set]->next;
+		temp->prev = head[set];
+		head[set]->next = temp;
 		return 0;
 	}
 
@@ -185,8 +219,8 @@ int main(int argc, char **argv) {
 			cerr << "Error in arguments" << endl;
 			return 0;
 		}
-		Cache L1(L1Size, BSize, L1Assoc, L1Cyc, WrAlloc);
-		Cache L2(L2Size, BSize, L2Assoc, L2Cyc, WrAlloc);
+		Cache L1(1, L1Size, BSize, L1Assoc, L1Cyc,WrAlloc);
+		Cache L2(2, L2Size, BSize, L2Assoc, L2Cyc,WrAlloc);
 	}
 
 	while (getline(file, line)) {
