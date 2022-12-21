@@ -83,9 +83,11 @@ public:
 
 	//this function finds the set in the cache
 	int findSet(unsigned long int address){
+		if(this->assoc==0) return 0;
 		address = getBlockAddress(address);
 		uint32_t set = address % this->assoc; //this is the set (explaination:
 		//taking the modulo of a binary by n is the same as taking the last n bits)
+		//mod of 0 is undefined in cpp
 		return set;
 	}
 
@@ -93,42 +95,39 @@ public:
 
 	//this function puts the block in the cache
 	void putBlock(unsigned long int address){
-		if(this->assoc == 0){
-
-		//this function gets the block from the cache
-		int getBlock(unsigned long int address){
-			address = getBlockAddress(address);
-			if(cache.find(address) == cache.end()){
-				return -1;
-			}
-			Node* temp = cache[address];
-			temp->prev->next = temp->next;
-			temp->next->prev = temp->prev;
-			head->next->prev = temp;
-			temp->next = head->next;
-			temp->prev = head;
-			head->next = temp;
-			return 0;
-			}
-			else{//we cannot run findSet() on a direct mapped cache
-			//because the behaviour of mod 0 is undefined in cpp
-				int set = findSet(address);
-				address = getBlockAddress(address);
-				if(cache[set].find(address) == cache[set].end()){
-					return -1;
-				}
-				Node* temp = cache[set][address];
-				temp->prev->next = temp->next;
-				temp->next->prev = temp->prev;
-				head->next->prev = temp;
-				temp->next = head->next;
-				temp->prev = head;
-				head->next = temp;
-				return 0;
-			}
+		int set = findSet(address);
+		address = getBlockAddress(address);
+		if(cache[set].size() == this->size/this->assoc){
+			Node* temp = tail->prev;
+			temp->prev->next = tail;
+			tail->prev = temp->prev;
+			cache[set].erase(temp->address);
+			delete temp;
 		}
-		
+		Node* temp = new Node(address, head->next, head);
+		head->next->prev = temp;
+		head->next = temp;
+		cache[set][address] = temp;
+ 	}
+	//this function gets the block from the cache
+	int getBlock(unsigned long int address){
+		int set = findSet(address);
+		address = getBlockAddress(address);
+		if(cache[set].find(address) == cache[set].end()){
+			return -1;
+		}
+		Node* temp = cache[set][address];
+		temp->prev->next = temp->next;
+		temp->next->prev = temp->prev;
+		head->next->prev = temp;
+		temp->next = head->next;
+		temp->prev = head;
+		head->next = temp;
+		return 0;
+	}
+
 };
+
 
 
 
