@@ -56,7 +56,8 @@ public:
 		assoc = 0;
 		accessTime = 0;
 		writeAlloc = false;
-		for(int i = 0; i < assoc; i++){
+		unsigned int ways = pow(2,assoc);//ways is defined as 2^assoc
+		for(int i = 0; i < ways; i++){
 			unordered_map<unsigned long int, Node*> temp;
 			cache.push_back(temp);
 			head[i] = new Node(0, nullptr, nullptr);
@@ -64,7 +65,7 @@ public:
 			head[i]->next = tail[i];
 			tail[i]->prev = head[i];
 		}
-		if(assoc == 0){
+		if(ways == 0){
 			unordered_map<unsigned long int, Node*> temp;
 			cache.push_back(temp);
 			head[0] = new Node(0, nullptr, nullptr);
@@ -77,10 +78,11 @@ public:
 			, unsigned int accessTime, bool writeAlloc):
 		level(level), size(size), blockSize(blockSize), assoc(assoc), accessTime(accessTime),
 		writeAlloc(writeAlloc){
-			head.resize(assoc);
-			tail.resize(assoc);
+			unsigned int ways = pow(2,assoc);
+			head.resize(ways);
+			tail.resize(ways);
 
-			for(int i = 0; i < assoc; i++){
+			for(int i = 0; i < ways; i++){
 				unordered_map<unsigned long int, Node*> temp;
 				cache.push_back(temp);
 				head[i] = new Node(0, nullptr, nullptr);
@@ -88,7 +90,7 @@ public:
 				head[i]->next = tail[i];
 				tail[i]->prev = head[i];
 			}
-			if(assoc == 0){
+			if(ways == 0){
 				unordered_map<unsigned long int, Node*> temp;
 				cache.push_back(temp);
 				head[0] = new Node(0, nullptr, nullptr);
@@ -96,19 +98,11 @@ public:
 				head[0]->next = tail[0];
 				tail[0]->prev = head[0];
 			}
-			cache.resize(assoc);
+			cache.resize(ways);
 	}
 	~Cache(){
-		for(int i = 0; i < assoc; i++){
+		for(int i = 0; i < cache.size(); i++){
 			Node* temp = head[i];
-			while(temp != nullptr){
-				Node* temp2 = temp->next;
-				delete temp;
-				temp = temp2;
-			}
-		}
-		if(assoc == 0){
-			Node* temp = head[0];
 			while(temp != nullptr){
 				Node* temp2 = temp->next;
 				delete temp;
@@ -128,6 +122,8 @@ public:
 		address = getBlockAddress(address);
 		uint32_t set = address % this->assoc; //this is the set (explaination:
 		//taking the modulo of a binary by n is the same as taking the last n bits)
+		//assoc = log2(ways) meaning that assoc is the number of bits that are
+		//reserved for the sete
 		//mod of 0 is undefined in cpp
 		return set;
 	}
@@ -138,7 +134,8 @@ public:
 	void putBlock(unsigned long int address){
 		int set = findSet(address);
 		address = getBlockAddress(address);
-		if(cache[set].size() == this->size/this->assoc){
+		if(cache[set].size() == this->size/pow(2,this->assoc)){//check if the
+		//way is full
 			Node* temp = tail[set]->prev;
 			temp->prev->next = tail[set];
 			tail[set]->prev = temp->prev;
