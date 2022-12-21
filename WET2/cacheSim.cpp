@@ -64,7 +64,14 @@ public:
 			head[i]->next = tail[i];
 			tail[i]->prev = head[i];
 		}
-
+		if(assoc == 0){
+			unordered_map<unsigned long int, Node*> temp;
+			cache.push_back(temp);
+			head[0] = new Node(0, nullptr, nullptr);
+			tail[0] = new Node(0, nullptr, nullptr);
+			head[0]->next = tail[0];
+			tail[0]->prev = head[0];
+		}
 	}
 	Cache(unsigned int level, unsigned int size, unsigned int blockSize, unsigned int assoc
 			, unsigned int accessTime, bool writeAlloc):
