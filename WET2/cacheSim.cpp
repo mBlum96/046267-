@@ -6,6 +6,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <set>
+#include <vector>
 
 using std::FILE;
 using std::string;
@@ -16,6 +17,7 @@ using std::ifstream;
 using std::stringstream;
 using std::unordered_map;
 using std::set;
+using std::vector;
 
 class Node{
 public:
@@ -41,7 +43,8 @@ private:
 	bool writeAlloc;
 	Node* head;
 	Node* tail;
-	unordered_map<unsigned long int, Node*> cache;
+	// unordered_map<unsigned long int, Node*> cache;
+	vector <unordered_map<unsigned long int, Node*>> cache;
 
 
 public:
@@ -78,39 +81,53 @@ public:
 		return address >> this->blockSize;
 	} 
 
+	//this function finds the set in the cache
+	int findSet(unsigned long int address){
+		address = getBlockAddress(address);
+		uint32_t set = address % this->assoc; //this is the set (explaination:
+		//taking the modulo of a binary by n is the same as taking the last n bits)
+		return set;
+	}
+
+
 
 	//this function puts the block in the cache
 	void putBlock(unsigned long int address){
-		//if the cache is full, we need to evict the last element
-		if(cache.size() == this->size){
-			Node* temp = tail->prev;
-			temp->prev->next = tail;
-			tail->prev = temp->prev;
-			cache.erase(temp->address);
-			delete temp;
-		}
-		address = getBlockAddress(address);
-		Node* temp = new Node(address, head->next, head);
-		head->next->prev = temp;
-		head->next = temp;
-		cache[address] = temp;
-	}
+		if(this->assoc == 0){
 
-	//this function gets the block from the cache
-	int getBlock(unsigned long int address){
-		address = getBlockAddress(address);
-		if(cache.find(address) == cache.end()){
-			return -1;
+		//this function gets the block from the cache
+		int getBlock(unsigned long int address){
+			address = getBlockAddress(address);
+			if(cache.find(address) == cache.end()){
+				return -1;
+			}
+			Node* temp = cache[address];
+			temp->prev->next = temp->next;
+			temp->next->prev = temp->prev;
+			head->next->prev = temp;
+			temp->next = head->next;
+			temp->prev = head;
+			head->next = temp;
+			return 0;
+			}
+			else{//we cannot run findSet() on a direct mapped cache
+			//because the behaviour of mod 0 is undefined in cpp
+				int set = findSet(address);
+				address = getBlockAddress(address);
+				if(cache[set].find(address) == cache[set].end()){
+					return -1;
+				}
+				Node* temp = cache[set][address];
+				temp->prev->next = temp->next;
+				temp->next->prev = temp->prev;
+				head->next->prev = temp;
+				temp->next = head->next;
+				temp->prev = head;
+				head->next = temp;
+				return 0;
+			}
 		}
-		Node* temp = cache[address];
-		temp->prev->next = temp->next;
-		temp->next->prev = temp->prev;
-		head->next->prev = temp;
-		temp->next = head->next;
-		temp->prev = head;
-		head->next = temp;
-		return 0;
-	}
+		
 };
 
 
@@ -119,13 +136,6 @@ public:
 double L1MissRate;
 double L2MissRate;
 double avgAccTime;
-
-//this function determines if it is a miss or hit and updates the L1MissRate and L2MissRate
-//accordingly
-
-bool isMiss(unsigned long int address, Cache L1, Cache L2) {
-	return true;
-}
 
 
 //this is the main function
