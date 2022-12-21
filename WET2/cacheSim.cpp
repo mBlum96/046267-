@@ -123,7 +123,7 @@ public:
 		uint32_t set = address % this->assoc; //this is the set (explaination:
 		//taking the modulo of a binary by n is the same as taking the last n bits)
 		//assoc = log2(ways) meaning that assoc is the number of bits that are
-		//reserved for the sete
+		//reserved for the set
 		//mod of 0 is undefined in cpp
 		return set;
 	}
@@ -149,7 +149,7 @@ public:
  	}
 	//this function gets the block from the cache
 	int getBlock(unsigned long int address){
-		int set = findSet(address);
+		unsigned int set = findSet(address);
 		address = getBlockAddress(address);
 		if(cache[set].find(address) == cache[set].end()){
 			return -1;
